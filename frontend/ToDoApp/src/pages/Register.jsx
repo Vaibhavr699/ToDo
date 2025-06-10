@@ -1,174 +1,230 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import axios from 'axios';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { Box, Button, TextField, Typography, Container, IconButton, InputAdornment } from '@mui/material';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { toast } from 'react-toastify';
 
 const Register = () => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    username: '',
+    name: '',
     email: '',
     password: '',
     confirmPassword: '',
   });
+  const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { signup } = useAuth();
+  const navigate = useNavigate();
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Name validation
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required';
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = 'Name must be at least 2 characters';
+    }
+
+    // Email validation
+    if (!formData.email) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+      newErrors.password = 'Password must contain at least one uppercase letter, one lowercase letter, and one number';
+    }
+
+    // Confirm password validation
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation
-    if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword) {
-      toast.error('All fields are required');
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      toast.error('Password must be at least 6 characters long');
+    if (!validateForm()) {
       return;
     }
 
     try {
       setLoading(true);
-      const response = await axios.post('http://localhost:5000/api/auth/register', {
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (response.data.success) {
-        toast.success('Registration successful!');
-        // Store the token
-        localStorage.setItem('token', response.data.token);
-        // Redirect to dashboard
-        navigate('/dashboard');
-      }
-    } catch (error) {
-      console.error('Registration error:', error);
-      if (error.response?.data?.message) {
-        toast.error(error.response.data.message);
-      } else if (error.response?.data?.error) {
-        toast.error(error.response.data.error);
-      } else {
-        toast.error('Registration failed. Please try again.');
-      }
+      await signup(formData.email, formData.password, formData.name);
+      toast.success('Account created successfully!');
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('Registration error:', err);
+      // Error handling is done in AuthContext
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
-            <Link to="/" className="font-medium text-indigo-600 hover:text-indigo-500">
-              sign in to your account
-            </Link>
-          </p>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm space-y-4">
-            <div>
-              <label htmlFor="username" className="sr-only">
-                Username
-              </label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Username"
-                value={formData.username}
-                onChange={handleChange}
-              />
-            </div>
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-                value={formData.email}
-                onChange={handleChange}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleChange}
-              />
-            </div>
-            <div>
-              <label htmlFor="confirmPassword" className="sr-only">
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                required
-                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Confirm Password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-              />
-            </div>
-          </div>
+  const togglePasswordVisibility = (field) => {
+    if (field === 'password') {
+      setShowPassword(!showPassword);
+    } else {
+      setShowConfirmPassword(!showConfirmPassword);
+    }
+  };
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
-                loading
-                  ? 'bg-indigo-400 cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-              }`}
-            >
-              {loading ? (
-                <span className="flex items-center">
-                  Registering...
-                </span>
-              ) : (
-                'Register'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+  return (
+    <Container component="main" maxWidth="xs">
+      <Box
+        sx={{
+          marginTop: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          bgcolor: 'background.paper',
+          p: 4,
+          borderRadius: 2,
+          boxShadow: 1,
+        }}
+      >
+        <Typography component="h1" variant="h5" gutterBottom>
+          Create Account
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Join us to manage your tasks efficiently
+        </Typography>
+        
+        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="name"
+            label="Full Name"
+            name="name"
+            autoComplete="name"
+            autoFocus
+            value={formData.name}
+            onChange={handleChange}
+            error={!!errors.name}
+            helperText={errors.name}
+            disabled={loading}
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="email"
+            label="Email Address"
+            name="email"
+            autoComplete="email"
+            value={formData.email}
+            onChange={handleChange}
+            error={!!errors.email}
+            helperText={errors.email}
+            disabled={loading}
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="password"
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            id="password"
+            autoComplete="new-password"
+            value={formData.password}
+            onChange={handleChange}
+            error={!!errors.password}
+            helperText={errors.password}
+            disabled={loading}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={() => togglePasswordVisibility('password')}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="confirmPassword"
+            label="Confirm Password"
+            type={showConfirmPassword ? 'text' : 'password'}
+            id="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            error={!!errors.confirmPassword}
+            helperText={errors.confirmPassword}
+            disabled={loading}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle confirm password visibility"
+                    onClick={() => togglePasswordVisibility('confirm')}
+                    edge="end"
+                  >
+                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            sx={{ mt: 3, mb: 2, py: 1.5 }}
+            disabled={loading}
+          >
+            {loading ? 'Creating Account...' : 'Sign Up'}
+          </Button>
+          <Box sx={{ textAlign: 'center' }}>
+            <Link to="/login" style={{ textDecoration: 'none' }}>
+              <Typography variant="body2" color="primary" sx={{ '&:hover': { textDecoration: 'underline' } }}>
+                Already have an account? Sign In
+              </Typography>
+            </Link>
+          </Box>
+        </Box>
+      </Box>
+    </Container>
   );
 };
 
-export default Register;
+export default Register; 

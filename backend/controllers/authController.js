@@ -1,120 +1,154 @@
-// backend/controllers/authController.js
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+/* (Auth endpoints using Clerk – "mock" implementation) */
 
-const registerUser = async (req, res) => {
+// (Public) Register endpoint – "mock" (using Clerk on frontend)
+export const register = (req, res, next) => {
+  // (In a real Clerk integration, you'd remove this endpoint.)
+  res.status(200).json({ success: true, token: "dummy_token (using Clerk)" });
+};
+
+// (Public) Login endpoint – "mock" (using Clerk on frontend)
+export const login = (req, res, next) => {
+  // (In a real Clerk integration, you'd remove this endpoint.)
+  res.status(200).json({ success: true, token: "dummy_token (using Clerk)" });
+};
+
+// (Private) "getMe" endpoint – removed (using Clerk on frontend)
+// (In a real Clerk integration, you'd remove this endpoint.)
+
+// (Private) "logout" endpoint – "mock" (using Clerk on frontend)
+export const logout = (req, res, next) => {
+  // (In a real Clerk integration, you'd remove this endpoint.)
+  res.status(200).json({ success: true, data: {} });
+};
+
+// Generate JWT
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: '30d',
+  });
+};
+
+// @desc    Register a new user
+// @route   POST /api/auth/register
+// @access  Public
+export const registerUser = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { name, email, password } = req.body;
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists with this email',
-      });
+    // Check if user exists
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Create new user
-    const user = new User({
-      username,
+    // Create user
+    const user = await User.create({
+      name,
       email,
       password,
     });
 
-    await user.save();
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Return user data (excluding password)
-    const userData = user.toObject();
-    delete userData.password;
-
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      token,
-      user: userData,
-    });
-  } catch (error) {
-    console.error('Registration error:', error);
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({
-        success: false,
-        message: Object.values(error.errors).map(err => err.message).join(', '),
+    if (user) {
+      res.status(201).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        token: generateToken(user._id),
       });
+    } else {
+      res.status(400).json({ message: 'Invalid user data' });
     }
-    res.status(500).json({
-      success: false,
-      message: 'Error registering user',
-    });
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-const loginUser = async (req, res) => {
+// @desc    Auth user & get token
+// @route   POST /api/auth/login
+// @access  Public
+export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email });
+    // Check for user email
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password',
-      });
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Check if user has a password (Google OAuth users might not have one)
-    if (!user.password) {
-      return res.status(401).json({
-        success: false,
-        message: 'Please sign in with Google',
-      });
-    }
-
-    // Verify password
-    const isMatch = await user.comparePassword(password);
+    // Check if password matches
+    const isMatch = await user.matchPassword(password);
     if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password',
-      });
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Return user data (excluding password)
-    const userData = user.toObject();
-    delete userData.password;
 
     res.json({
-      success: true,
-      message: 'Login successful',
-      token,
-      user: userData,
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      isAdmin: user.isAdmin,
+      token: generateToken(user._id),
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error logging in',
-    });
+    res.status(500).json({ message: 'Server error' });
   }
 };
 
-module.exports = {
-  registerUser,
-  loginUser
+// @desc    Get current user profile
+// @route   GET /api/auth/me
+// @access  Private
+export const getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      isAdmin: user.isAdmin,
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 };
-  
+
+// @desc    Update user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+export const updateUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.name = req.body.name || user.name;
+    user.email = req.body.email || user.email;
+    if (req.body.password) {
+      user.password = req.body.password;
+    }
+
+    const updatedUser = await user.save();
+
+    res.json({
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      isAdmin: updatedUser.isAdmin,
+      token: generateToken(updatedUser._id),
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};

@@ -1,210 +1,189 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useGoogleLogin } from '@react-oauth/google';
-import toast from 'react-hot-toast';
-import axios from 'axios';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { Box, Button, TextField, Typography, Container, Alert, IconButton, InputAdornment } from '@mui/material';
+import { Visibility, VisibilityOff } from '@mui/icons-material';
+import { toast } from 'react-toastify';
 
 const Login = () => {
-  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
+  const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Email validation
+    if (!formData.email) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validation
-    if (!formData.email || !formData.password) {
-      toast.error('All fields are required');
+    
+    if (!validateForm()) {
       return;
     }
 
     try {
       setLoading(true);
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
-        email: formData.email,
-        password: formData.password,
-      });
-
-      if (response.data.success) {
-        toast.success('Login successful!');
-        localStorage.setItem('token', response.data.token);
-        navigate('/dashboard');
+      await login(formData.email, formData.password);
+      toast.success('Successfully logged in!');
+      navigate('/dashboard');
+    } catch (err) {
+      console.error('Login error:', err);
+      let errorMessage = 'Failed to sign in. Please check your credentials.';
+      
+      // Handle specific Firebase error codes
+      switch (err.code) {
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+          errorMessage = 'Invalid email or password';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many failed attempts. Please try again later';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'This account has been disabled';
+          break;
+        default:
+          errorMessage = err.message || errorMessage;
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      if (error.response?.data?.message) {
-        toast.error(error.response.data.message);
-      } else if (error.response?.data?.error) {
-        toast.error(error.response.data.error);
-      } else {
-        toast.error('Login failed. Please try again.');
-      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = useGoogleLogin({
-    onSuccess: async (response) => {
-      try {
-        console.log('Google OAuth response:', response); // Debug log
-
-        const userInfo = await axios.get(
-          'https://www.googleapis.com/oauth2/v3/userinfo',
-          {
-            headers: { Authorization: `Bearer ${response.access_token}` },
-          }
-        );
-        console.log('Google user info:', userInfo.data); // Debug log
-
-        const loginResponse = await axios.post('http://localhost:5000/api/auth/google', {
-          email: userInfo.data.email,
-          name: userInfo.data.name,
-          googleId: userInfo.data.sub,
-          picture: userInfo.data.picture,
-        });
-        console.log('Backend login response:', loginResponse.data); // Debug log
-
-        if (loginResponse.data.success) {
-          toast.success('Google login successful!');
-          localStorage.setItem('token', loginResponse.data.token);
-          navigate('/dashboard');
-        }
-      } catch (error) {
-        console.error('Google login error details:', {
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status,
-          headers: error.response?.headers,
-          config: {
-            url: error.config?.url,
-            method: error.config?.method,
-            headers: error.config?.headers,
-          }
-        });
-        
-        if (error.response?.data?.message) {
-          toast.error(error.response.data.message);
-        } else if (error.response?.data?.error) {
-          toast.error(error.response.data.error);
-        } else {
-          toast.error(`Google login failed: ${error.message}`);
-        }
-      }
-    },
-    onError: (error) => {
-      console.error('Google OAuth error:', error);
-      toast.error('Google login failed. Please try again.');
-    },
-    flow: 'implicit',
-  });
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
-            <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-              create a new account
-            </Link>
-          </p>
-        </div>
-
-        <div className="mt-6">
-          <button
-            onClick={() => handleGoogleLogin()}
-            className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+    <Container component="main" maxWidth="xs">
+      <Box
+        sx={{
+          marginTop: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          bgcolor: 'background.paper',
+          p: 4,
+          borderRadius: 2,
+          boxShadow: 1,
+        }}
+      >
+        <Typography component="h1" variant="h5" gutterBottom>
+          Welcome Back
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Sign in to manage your tasks
+        </Typography>
+        
+        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="email"
+            label="Email Address"
+            name="email"
+            autoComplete="email"
+            autoFocus
+            value={formData.email}
+            onChange={handleChange}
+            error={!!errors.email}
+            helperText={errors.email}
+            disabled={loading}
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            name="password"
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            id="password"
+            autoComplete="current-password"
+            value={formData.password}
+            onChange={handleChange}
+            error={!!errors.password}
+            helperText={errors.password}
+            disabled={loading}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={togglePasswordVisibility}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            sx={{ mt: 3, mb: 2, py: 1.5 }}
+            disabled={loading}
           >
-            <img
-              className="h-5 w-5 mr-2"
-              src="https://www.google.com/favicon.ico"
-              alt="Google logo"
-            />
-            Sign in with Google
-          </button>
-        </div>
-
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Or continue with</span>
-            </div>
-          </div>
-        </div>
-
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm space-y-4">
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-                value={formData.email}
-                onChange={handleChange}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleChange}
-              />
-            </div>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
-                loading
-                  ? 'bg-indigo-400 cursor-not-allowed'
-                  : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-              }`}
-            >
-              {loading ? (
-                <span className="flex items-center">
-                  Signing in...
-                </span>
-              ) : (
-                'Sign in'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+            {loading ? 'Signing in...' : 'Sign In'}
+          </Button>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+            <Link to="/forgot-password" style={{ textDecoration: 'none' }}>
+              <Typography variant="body2" color="primary" sx={{ '&:hover': { textDecoration: 'underline' } }}>
+                Forgot password?
+              </Typography>
+            </Link>
+            <Link to="/register" style={{ textDecoration: 'none' }}>
+              <Typography variant="body2" color="primary" sx={{ '&:hover': { textDecoration: 'underline' } }}>
+                Don't have an account? Sign Up
+              </Typography>
+            </Link>
+          </Box>
+        </Box>
+      </Box>
+    </Container>
   );
 };
 
-export default Login;
+export default Login; 
