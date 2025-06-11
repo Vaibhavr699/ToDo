@@ -1,14 +1,16 @@
 // frontend/src/services/api.js
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api/v1';
+const API_URL = 'https://todo-backend-p970.onrender.com/api/v1';
 
 // Create axios instance with default config
 const api = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  },
+  withCredentials: true
 });
 
 // Add request interceptor to add auth token
@@ -25,99 +27,105 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor to handle token expiration
+// Add response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Clear local storage and redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error('API Error:', error.response.data);
+      return Promise.reject(error.response.data);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('No response received:', error.request);
+      return Promise.reject({ message: 'No response from server' });
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('Request setup error:', error.message);
+      return Promise.reject({ message: 'Request setup failed' });
     }
-    return Promise.reject(error);
   }
 );
 
 // Task API endpoints
-export const taskApi = {
-  // Get all tasks
-  getTasks: async () => {
-    const response = await api.get('/tasks');
-    return response.data;
-  },
+export const getTasks = async () => {
+  const response = await api.get('/tasks');
+  return response.data.data;
+};
 
-  // Get tasks by status
-  getTasksByStatus: async (status) => {
-    const response = await api.get(`/tasks/status/${status}`);
-    return response.data;
-  },
+export const getTasksByStatus = async (status) => {
+  const response = await api.get(`/tasks/status/${status}`);
+  return response.data.data;
+};
 
-  // Get tasks by priority
-  getTasksByPriority: async (priority) => {
-    const response = await api.get(`/tasks/priority/${priority}`);
-    return response.data;
-  },
+export const getTasksByPriority = async (priority) => {
+  const response = await api.get(`/tasks/priority/${priority}`);
+  return response.data.data;
+};
 
-  // Create a new task
-  createTask: async (taskData) => {
-    const response = await api.post('/tasks', taskData);
-    return response.data;
-  },
+export const getTask = async (id) => {
+  const response = await api.get(`/tasks/${id}`);
+  return response.data.data;
+};
 
-  // Update a task
-  updateTask: async (taskId, updates) => {
-    const response = await api.put(`/tasks/${taskId}`, updates);
-    return response.data;
-  },
+export const createTask = async (taskData) => {
+  const response = await api.post('/tasks', taskData);
+  return response.data.data;
+};
 
-  // Delete a task
-  deleteTask: async (taskId) => {
-    const response = await api.delete(`/tasks/${taskId}`);
-    return response.data;
-  }
+export const updateTask = async (id, taskData) => {
+  const response = await api.put(`/tasks/${id}`, taskData);
+  return response.data.data;
+};
+
+export const deleteTask = async (id) => {
+  const response = await api.delete(`/tasks/${id}`);
+  return response.data;
 };
 
 // Auth API endpoints
-export const authApi = {
-  // Login
-  login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
-    return response.data;
-  },
+export const login = async (credentials) => {
+  const response = await api.post('/auth/login', credentials);
+  console.log('Login API response:', response);
+  return response.data;
+};
 
-  // Register
-  register: async (userData) => {
-    const response = await api.post('/auth/register', userData);
-    return response.data;
-  },
+export const register = async (userData) => {
+  const response = await api.post('/auth/register', userData);
+  return response.data;
+};
 
-  // Get current user profile
-  getProfile: async () => {
-    const response = await api.get('/auth/me');
-    return response.data;
-  },
+export const getProfile = async () => {
+  const response = await api.get('/auth/me');
+  return response.data.data;
+};
 
-  // Update user profile
-  updateProfile: async (profileData) => {
-    const response = await api.put('/auth/profile', profileData);
-    return response.data;
-  },
+export const updateProfile = async (userData) => {
+  const response = await api.put('/auth/profile', userData);
+  return {
+    data: response.data.data,
+    token: response.data.token
+  };
+};
 
-  // Forgot password
-  forgotPassword: async (email) => {
-    const response = await api.post('/auth/forgot-password', { email });
-    return response.data;
-  },
+export const forgotPassword = async (email) => {
+  const response = await api.post('/auth/forgot-password', { email });
+  return response.data;
+};
 
-  // Reset password
-  resetPassword: async (token, newPassword) => {
-    const response = await api.post('/auth/reset-password', {
-      token,
-      newPassword
-    });
-    return response.data;
-  }
+export const resetPassword = async (token, newPassword) => {
+  const response = await axios.post('/auth/reset-password', {
+    token,
+    newPassword
+  });
+  return response.data;
+};
+
+// Search API endpoint
+export const searchTasks = async (query) => {
+  const response = await api.get(`/tasks/search?q=${encodeURIComponent(query)}`);
+  return response.data.data;
 };
 
 export default api;

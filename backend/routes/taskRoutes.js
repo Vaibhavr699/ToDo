@@ -1,31 +1,39 @@
 import express from 'express';
 import {
   getTasks,
+  getTask,
   getTasksByStatus,
   getTasksByPriority,
   createTask,
   updateTask,
-  deleteTask
+  deleteTask,
+  getTaskStats,
+  searchTasks,
+  debugTasks
 } from '../controllers/taskController.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// All routes are protected
+// Protect all routes
 router.use(protect);
 
-// Task routes
+// Debug route
+router.get('/debug', debugTasks);
+
+// Task routes - specific routes first
+router.get('/search', searchTasks);
+router.get('/status/:status', getTasksByStatus);
+router.get('/priority/:priority', getTasksByPriority);
+
+// Generic routes
 router.route('/')
   .get(getTasks)
   .post(createTask);
 
-router.route('/status/:status')
-  .get(getTasksByStatus);
-
-router.route('/priority/:priority')
-  .get(getTasksByPriority);
-
+// ID-specific routes last
 router.route('/:id')
+  .get(getTask)
   .put(updateTask)
   .delete(deleteTask);
 

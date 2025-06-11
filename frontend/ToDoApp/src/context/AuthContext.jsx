@@ -1,150 +1,103 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { authApi } from '../services/api';
+import { login as loginApi, register as registerApi, getProfile as getProfileApi, updateProfile as updateProfileApi } from '../services/api';
 import { toast } from 'react-toastify';
 
 const AuthContext = createContext();
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
 
-export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState(null);
 
-  // Check if user is logged in on mount
+  // Check token and fetch user profile on mount
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
-    
-    if (token && user) {
-      setCurrentUser(JSON.parse(user));
-      setUserProfile(JSON.parse(user));
-    }
-    setLoading(false);
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const userData = await getProfileApi();
+          setUser(userData);
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+          localStorage.removeItem('token');
+          setUser(null);
+        }
+      }
+      setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
-  // Sign up with email and password
-  async function signup(email, password, name) {
+  const login = async (credentials) => {
     try {
-      const response = await authApi.register({ email, password, name });
-      const { token, ...userData } = response;
-      
-      // Store token and user data
+      const response = await loginApi(credentials);
+      console.log('AuthContext login response:', response);
+      const { data, token } = response;
+      if (!token) {
+        throw new Error('No token received from server');
+      }
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      setCurrentUser(userData);
-      setUserProfile(userData);
-      
-      toast.success('Account created successfully!');
-      return userData;
+      setUser(data);
+      return data;
     } catch (error) {
-      handleAuthError(error);
+      console.error('Login error:', error);
+      toast.error(error.response?.data?.message || 'Login failed');
       throw error;
     }
-  }
+  };
 
-  // Sign in with email and password
-  async function login(email, password) {
+  const register = async (userData) => {
     try {
-      const response = await authApi.login({ email, password });
-      const { token, ...userData } = response;
-      
-      // Store token and user data
+      const { data, token } = await registerApi(userData);
+      if (!token) {
+        throw new Error('No token received from server');
+      }
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      setCurrentUser(userData);
-      setUserProfile(userData);
-      
-      toast.success('Logged in successfully!');
-      return userData;
+      setUser(data);
+      return data;
     } catch (error) {
-      handleAuthError(error);
+      console.error('Registration error:', error);
+      toast.error(error.response?.data?.message || 'Registration failed');
       throw error;
     }
-  }
+  };
 
-  // Sign out
-  async function logout() {
+  const logout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    toast.success('Logged out successfully');
+  };
+
+  const updateProfile = async (userData) => {
     try {
-      // Clear local storage
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      
-      setCurrentUser(null);
-      setUserProfile(null);
-      
-      toast.success('Successfully logged out!');
+      const { data, token } = await updateProfileApi(userData);
+      if (token) {
+        localStorage.setItem('token', token);
+      }
+      setUser(data);
+      return data;
     } catch (error) {
-      handleAuthError(error);
+      console.error('Profile update error:', error);
+      toast.error(error.response?.data?.message || 'Profile update failed');
       throw error;
     }
-  }
-
-  // Reset password
-  async function resetPassword(email) {
-    try {
-      await authApi.forgotPassword(email);
-      toast.success('Password reset email sent!');
-    } catch (error) {
-      handleAuthError(error);
-      throw error;
-    }
-  }
-
-  // Update user profile
-  async function updateUserProfile(profile) {
-    try {
-      if (!currentUser) throw new Error('No user logged in');
-      
-      const response = await authApi.updateProfile(profile);
-      const { token, ...userData } = response;
-      
-      // Update stored data
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      setCurrentUser(userData);
-      setUserProfile(userData);
-      
-      toast.success('Profile updated successfully!');
-      return userData;
-    } catch (error) {
-      handleAuthError(error);
-      throw error;
-    }
-  }
-
-  // Handle auth errors
-  function handleAuthError(error) {
-    console.error('Auth error:', error);
-    
-    let errorMessage = 'An error occurred during authentication';
-    
-    if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
-      errorMessage = error.response.data.message || errorMessage;
-    } else if (error.request) {
-      // The request was made but no response was received
-      errorMessage = 'No response from server';
-    }
-    
-    toast.error(errorMessage);
-  }
+  };
 
   const value = {
-    currentUser,
-    userProfile,
+    user,
     loading,
-    signup,
     login,
+    register,
     logout,
-    resetPassword,
-    updateUserProfile,
+    updateProfile,
   };
 
   return (
@@ -152,4 +105,4 @@ export function AuthProvider({ children }) {
       {!loading && children}
     </AuthContext.Provider>
   );
-} 
+}; 
