@@ -1,29 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
-/* (Auth endpoints using Clerk – "mock" implementation) */
-
-// (Public) Register endpoint – "mock" (using Clerk on frontend)
-export const register = (req, res, next) => {
-  // (In a real Clerk integration, you'd remove this endpoint.)
-  res.status(200).json({ success: true, token: "dummy_token (using Clerk)" });
-};
-
-// (Public) Login endpoint – "mock" (using Clerk on frontend)
-export const login = (req, res, next) => {
-  // (In a real Clerk integration, you'd remove this endpoint.)
-  res.status(200).json({ success: true, token: "dummy_token (using Clerk)" });
-};
-
-// (Private) "getMe" endpoint – removed (using Clerk on frontend)
-// (In a real Clerk integration, you'd remove this endpoint.)
-
-// (Private) "logout" endpoint – "mock" (using Clerk on frontend)
-export const logout = (req, res, next) => {
-  // (In a real Clerk integration, you'd remove this endpoint.)
-  res.status(200).json({ success: true, data: {} });
-};
-
 // Generate JWT
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -53,10 +30,12 @@ export const registerUser = async (req, res) => {
 
     if (user) {
       res.status(201).json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        isAdmin: user.isAdmin,
+        data: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          isAdmin: user.isAdmin,
+        },
         token: generateToken(user._id),
       });
     } else {
@@ -75,7 +54,11 @@ export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check for user email
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Please provide email and password' });
+    }
+
+    // Check for user email and explicitly select password
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
@@ -87,12 +70,17 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
+    // Generate token
+    const token = generateToken(user._id);
+
     res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      isAdmin: user.isAdmin,
-      token: generateToken(user._id),
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      },
+      token
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -111,10 +99,12 @@ export const getUserProfile = async (req, res) => {
     }
 
     res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      isAdmin: user.isAdmin,
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin,
+      }
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -141,10 +131,12 @@ export const updateUserProfile = async (req, res) => {
     const updatedUser = await user.save();
 
     res.json({
-      _id: updatedUser._id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      isAdmin: updatedUser.isAdmin,
+      data: {
+        _id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        isAdmin: updatedUser.isAdmin,
+      },
       token: generateToken(updatedUser._id),
     });
   } catch (error) {

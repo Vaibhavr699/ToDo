@@ -1,20 +1,14 @@
+import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';
-import useTaskNotifications from '../../hooks/useTaskNotifications';
-import '../../styles/layout.css';
 
 const Layout = () => {
-  useTaskNotifications();
-  
   return (
-    <div className="app-container">
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100 text-gray-900">
       <Header />
-      <main className="main-content">
+      <main className="flex-grow container mx-auto px-4 ">
         <Outlet />
       </main>
-      <footer className="app-footer">
-        <p>© {new Date().getFullYear()} Todo App</p>
-      </footer>
     </div>
   );
 };

@@ -10,10 +10,10 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-// Protected Route component
+// Protected Route wrapper
 const ProtectedRoute = ({ children }) => {
-  const { currentUser } = useAuth();
-  return currentUser ? children : <Navigate to="/login" />;
+  const { user } = useAuth();
+  return user ? children : <Navigate to="/login" replace />;
 };
 
 function App() {
@@ -21,12 +21,12 @@ function App() {
     <ErrorBoundary>
       <ToastContainer />
       <Routes>
-        {/* Public routes */}
+        {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* Protected routes */}
+        {/* Protected Routes */}
         <Route
           path="/"
           element={
@@ -40,7 +40,7 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Route>
 
-        {/* Catch all route - redirect to login if not authenticated */}
+        {/* Fallback */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </ErrorBoundary>

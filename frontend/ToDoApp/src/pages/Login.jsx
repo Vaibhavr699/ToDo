@@ -61,29 +61,12 @@ const Login = () => {
 
     try {
       setLoading(true);
-      await login(formData.email, formData.password);
+      await login({ email: formData.email, password: formData.password });
       toast.success('Successfully logged in!');
       navigate('/dashboard');
     } catch (err) {
       console.error('Login error:', err);
-      let errorMessage = 'Failed to sign in. Please check your credentials.';
-      
-      // Handle specific Firebase error codes
-      switch (err.code) {
-        case 'auth/user-not-found':
-        case 'auth/wrong-password':
-          errorMessage = 'Invalid email or password';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Too many failed attempts. Please try again later';
-          break;
-        case 'auth/user-disabled':
-          errorMessage = 'This account has been disabled';
-          break;
-        default:
-          errorMessage = err.message || errorMessage;
-      }
-      
+      const errorMessage = err.response?.data?.message || 'Failed to sign in. Please check your credentials.';
       toast.error(errorMessage);
     } finally {
       setLoading(false);
